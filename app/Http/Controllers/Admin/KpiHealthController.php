@@ -50,30 +50,6 @@ class KpiHealthController extends Controller
         ]);
     }
 
-    public function reassignKpi(Request $request, KPI $kpi)
-    {
-        $validated = $request->validate([
-            'user_id' => ['required', 'exists:users,id'],
-            'note' => ['nullable', 'string'],
-        ]);
-
-        $kpi->user_id = $validated['user_id'];
-        if (array_key_exists('note', $validated)) {
-            $kpi->note = $validated['note'];
-        }
-        $kpi->save();
-
-        $this->aggregator->recalculate($kpi, false);
-
-        $kpi->load('user:id,name,email');
-
-        return response()->json([
-            'success' => true,
-            'kpi_id' => $kpi->id,
-            'new_owner' => optional($kpi->user)->only(['id', 'name', 'email']),
-        ]);
-    }
-
     public function reassignTask(Request $request, Task $task)
     {
         $validated = $request->validate([

@@ -153,7 +153,6 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/management/kpi-health', [KpiHealthController::class, 'index'])
             ->name('management.kpi-health');
         Route::get('/management/kpi-health/snapshot', [KpiHealthController::class, 'snapshot']);
-        Route::post('/management/kpi-health/kpis/{kpi}/reassign', [KpiHealthController::class, 'reassignKpi']);
         Route::post('/management/kpi-health/tasks/{task}/reassign', [KpiHealthController::class, 'reassignTask']);
         Route::post('/management/kpi-health/tasks/{task}/ping', [KpiHealthController::class, 'pingTask']);
     });

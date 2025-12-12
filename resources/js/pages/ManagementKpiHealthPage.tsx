@@ -80,10 +80,8 @@ export default function ManagementKpiHealthPage({ defaultMonth }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [users, setUsers] = useState<UserOption[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
-  const [kpiModal, setKpiModal] = useState<{ show: boolean; kpi: RiskKpi | null; userId: string }>({ show: false, kpi: null, userId: '' });
   const [taskModal, setTaskModal] = useState<{ show: boolean; task: BlockedTask | null; userIds: number[] }>({ show: false, task: null, userIds: [] });
   const [pingModal, setPingModal] = useState<{ show: boolean; task: BlockedTask | null; message: string }>({ show: false, task: null, message: '' });
-  const [savingKpi, setSavingKpi] = useState(false);
   const [savingTask, setSavingTask] = useState(false);
   const [pingLoading, setPingLoading] = useState(false);
   const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
@@ -156,10 +154,6 @@ export default function ManagementKpiHealthPage({ defaultMonth }: Props) {
 
   const monthInputMax = new Date().toISOString().slice(0, 7);
 
-  const handleOpenKpiModal = (kpi: RiskKpi) => {
-    setKpiModal({ show: true, kpi, userId: '' });
-  };
-
   const handleOpenTaskModal = (task: BlockedTask) => {
     setTaskModal({ show: true, task, userIds: resolveOwnerUserIds(task.owners) });
   };
@@ -168,7 +162,6 @@ export default function ManagementKpiHealthPage({ defaultMonth }: Props) {
     setPingModal({ show: true, task, message: `Nhờ cập nhật tiến độ cho task "${task.title}"` });
   };
 
-  const closeKpiModal = () => setKpiModal(prev => ({ ...prev, show: false }));
   const closeTaskModal = () => setTaskModal(prev => ({ ...prev, show: false }));
   const closePingModal = () => setPingModal(prev => ({ ...prev, show: false }));
 
@@ -179,25 +172,6 @@ export default function ManagementKpiHealthPage({ defaultMonth }: Props) {
       setTaskModal(prev => ({ ...prev, userIds: resolved }));
     }
   }, [taskModal.show, taskModal.task, taskModal.userIds.length, resolveOwnerUserIds]);
-
-  const handleSubmitKpiReassign = async () => {
-    if (!kpiModal.kpi || !kpiModal.userId) return;
-    setSavingKpi(true);
-    try {
-      await axios.post(
-        `/management/kpi-health/kpis/${kpiModal.kpi.id}/reassign`,
-        { user_id: Number(kpiModal.userId) },
-        { headers: { 'X-CSRF-TOKEN': csrfToken } }
-      );
-      closeKpiModal();
-      await fetchSnapshot();
-    } catch (err) {
-      console.error(err);
-      alert('Không thể chuyển người phụ trách KPI.');
-    } finally {
-      setSavingKpi(false);
-    }
-  };
 
   const handleSubmitTaskReassign = async () => {
     if (!taskModal.task || taskModal.userIds.length === 0) return;
@@ -384,8 +358,13 @@ export default function ManagementKpiHealthPage({ defaultMonth }: Props) {
                               <td className="text-truncate" style={{ maxWidth: 180 }}>{kpi.note || '—'}</td>
                               <td className="text-end">
                                 <div className="d-flex gap-2 justify-content-end flex-wrap">
-                                  <Button variant="outline-primary" size="sm" onClick={() => handleOpenKpiModal(kpi)}>
-                                    Reassign
+                                  <Button
+                                    as="a"
+                                    href={`/kpis/${kpi.id}/edit`}
+                                    variant="outline-primary"
+                                    size="sm"
+                                  >
+                                    Xem KPI
                                   </Button>
                                   <Button variant="outline-secondary" size="sm" onClick={() => openMeetingPlanner(kpi)}>
                                     Tạo cuộc họp
@@ -472,40 +451,6 @@ export default function ManagementKpiHealthPage({ defaultMonth }: Props) {
           </Card>
         </>
       )}
-
-      <Modal show={kpiModal.show} onHide={closeKpiModal} centered>
-        <Modal.Header closeButton>
-          <Modal.Title>Chuyển KPI rủi ro</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          <p className="mb-3">KPI: <strong>{kpiModal.kpi?.name}</strong></p>
-          <Form.Group className="mb-3">
-            <Form.Label>Chọn người phụ trách mới</Form.Label>
-            <Form.Select
-              disabled={loadingUsers}
-              value={kpiModal.userId}
-              onChange={e => setKpiModal(prev => ({ ...prev, userId: e.target.value }))}
-            >
-              <option value="">-- Chọn nhân sự --</option>
-              {users.map(user => (
-                <option key={user.id} value={user.id}>
-                  {user.name}
-                </option>
-              ))}
-            </Form.Select>
-          </Form.Group>
-          {loadingUsers && <small className="text-muted">Đang tải danh sách nhân sự...</small>}
-        </Modal.Body>
-        <Modal.Footer>
-          <Button variant="secondary" onClick={closeKpiModal}>
-            Huỷ
-          </Button>
-          <Button variant="primary" onClick={handleSubmitKpiReassign} disabled={!kpiModal.userId || savingKpi}>
-            {savingKpi ? 'Đang chuyển...' : 'Chuyển người phụ trách'}
-          </Button>
-        </Modal.Footer>
-      </Modal>
-
       <Modal show={taskModal.show} onHide={closeTaskModal} centered>
         <Modal.Header closeButton>
           <Modal.Title>Chuyển giao công việc</Modal.Title>
