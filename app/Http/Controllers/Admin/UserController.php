@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Department;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -12,7 +13,10 @@ class UserController extends Controller
     public function index(Request $request)
     {
         if ($request->wantsJson()) {
-            return User::orderBy('id', 'desc')->get();
+            Department::syncFromManagers();
+            return User::with('department:id,name')
+                ->orderBy('id', 'desc')
+                ->get();
         }
         return view('management.users');
     }
@@ -24,6 +28,7 @@ class UserController extends Controller
             'email' => 'required|email|unique:users',
             'password' => 'required|string|min:1',
             'role' => 'nullable|string|in:Admin,Trưởng phòng,Nhân viên',
+            'department_id' => 'nullable|exists:departments,id',
         ]);
 
         // ✅ Gán mặc định nếu không truyền
@@ -45,13 +50,23 @@ class UserController extends Controller
             ], 403);
         }
 
+        // ✅ Gán phòng ban (nếu có)
+        if (!$request->filled('department_id')) {
+            $data['department_id'] = null;
+        }
+
         // ✅ Mã hoá mật khẩu
         $data['password'] = Hash::make($data['password']);
 
         // ✅ Chỉ tạo sau khi kiểm tra quyền hợp lệ
         $user = User::create($data);
 
-        return response()->json($user, 201);
+        if ($user->role === 'Trưởng phòng') {
+            Department::ensureForManager($user);
+            $user->refresh('department');
+        }
+
+        return response()->json($user->fresh('department'), 201);
     }
 
 
@@ -70,6 +85,7 @@ class UserController extends Controller
             'role' => 'required|string|in:Admin,Trưởng phòng,Nhân viên',
             'password' => 'nullable|string|min:1',
             'old_password' => 'nullable|string',
+            'department_id' => 'nullable|exists:departments,id',
         ]);
 
         $currentUser = auth()->user();
@@ -145,9 +161,18 @@ class UserController extends Controller
         // =========================================
         // ✅ 3. Cập nhật
         // =========================================
+        if (!$request->filled('department_id')) {
+            $data['department_id'] = null;
+        }
+
         $user->update($data);
 
-        return response()->json($user->fresh());
+        if ($user->role === 'Trưởng phòng') {
+            Department::ensureForManager($user);
+            $user->refresh('department');
+        }
+
+        return response()->json($user->fresh('department'));
     }
 
 

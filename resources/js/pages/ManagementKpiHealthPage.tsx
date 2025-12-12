@@ -3,6 +3,12 @@ import axios from 'axios';
 import { Badge, Button, Card, Form, Modal, Spinner, Table } from 'react-bootstrap';
 import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
+declare global {
+  interface Window {
+    currentUserRole?: string;
+  }
+}
+
 interface Summary {
   total: number;
   on_track: number;
@@ -59,6 +65,12 @@ interface UserOption {
   email?: string | null;
 }
 
+interface DepartmentOption {
+  id: number;
+  name: string;
+  manager_id?: number | null;
+}
+
 const distributionLabels: Record<keyof DistributionBuckets, string> = {
   excellent: '>= 95% (Xuất sắc)',
   good: '85% - 94%',
@@ -80,18 +92,27 @@ export default function ManagementKpiHealthPage({ defaultMonth }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [users, setUsers] = useState<UserOption[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
+  const [departments, setDepartments] = useState<DepartmentOption[]>([]);
+  const [loadingDepartments, setLoadingDepartments] = useState(false);
+  const [departmentId, setDepartmentId] = useState<string>('');
   const [taskModal, setTaskModal] = useState<{ show: boolean; task: BlockedTask | null; userIds: number[] }>({ show: false, task: null, userIds: [] });
   const [pingModal, setPingModal] = useState<{ show: boolean; task: BlockedTask | null; message: string }>({ show: false, task: null, message: '' });
   const [savingTask, setSavingTask] = useState(false);
   const [pingLoading, setPingLoading] = useState(false);
   const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+  const currentRole = window.currentUserRole || '';
+  const isAdmin = currentRole === 'Admin';
 
-  const fetchSnapshot = async () => {
+  const fetchSnapshot = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
+      const params: Record<string, string> = { month };
+      if (isAdmin && departmentId) {
+        params.department_id = departmentId;
+      }
       const response = await axios.get<SnapshotResponse>('/management/kpi-health/snapshot', {
-        params: { month },
+        params,
       });
       setSnapshot(response.data);
     } catch (err: any) {
@@ -101,12 +122,11 @@ export default function ManagementKpiHealthPage({ defaultMonth }: Props) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [departmentId, isAdmin, month]);
 
   useEffect(() => {
     fetchSnapshot();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [month]);
+  }, [fetchSnapshot]);
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -123,6 +143,23 @@ export default function ManagementKpiHealthPage({ defaultMonth }: Props) {
 
     fetchUsers();
   }, []);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    const fetchDepartments = async () => {
+      setLoadingDepartments(true);
+      try {
+        const response = await axios.get<DepartmentOption[]>('/api/departments');
+        setDepartments(Array.isArray(response.data) ? response.data : []);
+      } catch (err) {
+        console.error('Không thể tải danh sách phòng ban', err);
+      } finally {
+        setLoadingDepartments(false);
+      }
+    };
+
+    fetchDepartments();
+  }, [isAdmin]);
 
   const resolveOwnerUserIds = useCallback(
     (owners: string[] = []) => {
@@ -229,6 +266,21 @@ export default function ManagementKpiHealthPage({ defaultMonth }: Props) {
             <p className="text-muted mb-0">Tập trung theo tháng để ưu tiên các KPI/Task bị nghẽn.</p>
           </div>
           <div className="d-flex gap-2 flex-wrap align-items-center">
+            {isAdmin && (
+              <Form.Select
+                style={{ minWidth: 200 }}
+                value={departmentId}
+                onChange={e => setDepartmentId(e.target.value)}
+                disabled={loadingDepartments}
+              >
+                <option value="">Tất cả phòng ban</option>
+                {departments.map(dept => (
+                  <option key={dept.id} value={dept.id}>
+                    {dept.name}
+                  </option>
+                ))}
+              </Form.Select>
+            )}
             <input
               type="month"
               className="form-control"

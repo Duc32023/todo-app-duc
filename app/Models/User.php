@@ -24,6 +24,7 @@ class User extends Authenticatable
         'password',
         'avatar',
         'role',
+        'department_id',
     ];
 
     /**
@@ -50,5 +51,10 @@ class User extends Authenticatable
         return $this->belongsToMany(Task::class, 'task_user')
             ->withPivot(['progress', 'status'])
             ->withTimestamps();
+    }
+
+    public function department()
+    {
+        return $this->belongsTo(Department::class);
     }
 }

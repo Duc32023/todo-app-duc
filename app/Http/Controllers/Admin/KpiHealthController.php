@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\KPI;
 use App\Models\Task;
+use App\Models\User;
 use App\Services\MonthlyKpiAggregator;
 use App\Notifications\TaskPingNotification;
 use Carbon\Carbon;
@@ -28,18 +29,28 @@ class KpiHealthController extends Controller
     {
         $month = $request->input('month', now()->format('Y-m'));
         $range = $this->buildRange($month);
+        $departmentId = $request->filled('department_id')
+            ? (int) $request->input('department_id')
+            : null;
 
-        $kpis = KPI::with('user')
+        $visibleUserIds = $this->resolveVisibleUserIds($request->user(), $departmentId);
+
+        $kpisQuery = KPI::with('user')
             ->whereDate('start_date', $range['start']->toDateString())
-            ->whereDate('end_date', $range['end']->toDateString())
-            ->get();
+            ->whereDate('end_date', $range['end']->toDateString());
+
+        if (is_array($visibleUserIds)) {
+            $kpisQuery->whereIn('user_id', $visibleUserIds);
+        }
+
+        $kpis = $kpisQuery->get();
 
         $kpis->each(fn(KPI $kpi) => $this->aggregator->recalculate($kpi, false));
 
         $summary = $this->buildSummary($kpis, $range['start']);
         $distribution = $this->buildDistribution($kpis);
         $riskKpis = $this->formatRiskKpis($kpis);
-        $blockedTasks = $this->collectBlockedTasks($range['start'], $range['end']);
+        $blockedTasks = $this->collectBlockedTasks($range['start'], $range['end'], $visibleUserIds);
 
         return response()->json([
             'month' => $month,
@@ -161,6 +172,7 @@ class KpiHealthController extends Controller
     private function formatRiskKpis(Collection $kpis): array
     {
         return $kpis
+            ->filter(fn (KPI $kpi) => (float) $kpi->percent < 90)
             ->sortBy('percent')
             ->take(8)
             ->map(function (KPI $kpi) {
@@ -181,7 +193,7 @@ class KpiHealthController extends Controller
             ->all();
     }
 
-    private function collectBlockedTasks(Carbon $start, Carbon $end): array
+    private function collectBlockedTasks(Carbon $start, Carbon $end, ?array $visibleUserIds = null): array
     {
         $query = Task::query()
             ->with(['assignedByUser:id,name', 'users:id,name'])
@@ -190,11 +202,28 @@ class KpiHealthController extends Controller
             ->whereBetween('deadline_at', [$start->copy()->subDays(7), $end->copy()->addDays(7)])
             ->orderBy('deadline_at');
 
-        return $query->take(10)->get()->map(function (Task $task) {
-            $deadline = Carbon::parse($task->deadline_at);
-            $days = $deadline->diffInDays(now(), false);
+        if (is_array($visibleUserIds)) {
+            $query->where(function ($sub) use ($visibleUserIds) {
+                $sub->whereIn('tasks.user_id', $visibleUserIds)
+                    ->orWhereHas('users', fn($q) => $q->whereIn('users.id', $visibleUserIds));
+            });
+        }
 
+        return $query->take(10)->get()->map(function (Task $task) {
             $deadline = $task->deadline_at ? Carbon::parse($task->deadline_at) : null;
+            $today = now();
+
+            $isOverdue = false;
+            $daysDelta = 0;
+
+            if ($deadline) {
+                if ($deadline->lt($today)) {
+                    $isOverdue = true;
+                    $daysDelta = $deadline->diffInDays($today); // số ngày trễ (dương)
+                } else {
+                    $daysDelta = -$today->diffInDays($deadline); // số ngày còn lại (âm)
+                }
+            }
 
             return [
                 'id' => $task->id,
@@ -204,9 +233,47 @@ class KpiHealthController extends Controller
                 'assigned_by' => optional($task->assignedByUser)->name,
                 'owners' => $task->users->pluck('name')->all(),
                 'status' => $task->status,
-                'is_overdue' => $days > 0,
-                'days_overdue' => $days,
+                'is_overdue' => $isOverdue,
+                'days_overdue' => $daysDelta,
             ];
         })->all();
+    }
+
+    private function resolveVisibleUserIds(?User $currentUser, ?int $departmentId = null): ?array
+    {
+        if (!$currentUser) {
+            return null;
+        }
+
+        if ($currentUser->role === 'Admin') {
+            if (!$departmentId) {
+                return null; // Admin xem toàn bộ
+            }
+
+            return User::query()
+                ->where('department_id', $departmentId)
+                ->pluck('id')
+                ->map(fn($id) => (int) $id)
+                ->unique()
+                ->values()
+                ->all();
+        }
+
+        if ($currentUser->role !== 'Trưởng phòng') {
+            return [$currentUser->id];
+        }
+
+        if (!$currentUser->department_id) {
+            return [$currentUser->id];
+        }
+
+        return User::query()
+            ->where('department_id', $currentUser->department_id)
+            ->pluck('id')
+            ->push($currentUser->id)
+            ->map(fn($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
     }
 }

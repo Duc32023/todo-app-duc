@@ -223,17 +223,25 @@ export default function KpiPage({ initialKpis, filters }) {
      const res = await fetch(`/kpis/monthly-tasks?month=${value}`);
      if (!res.ok) throw new Error('Prefill failed');
      const data = await res.json();
-     const mapped = (data.tasks || []).map((task) => ({
-       title: task.title || "",
-       target: task.actual_units === null || task.actual_units === undefined
-         ? (task.completed ? "1" : "0")
-         : String(task.actual_units),
-       priority: task.priority || null,
-       goal: task.goal_units ?? null,
-       taskId: task.id,
-       actual: task.actual_units ?? null,
-       completion_ratio: task.completion_ratio ?? 0,
-     }));
+    const mapped = (data.tasks || []).map((task) => {
+      const goalUnits = task.goal_units ?? task.target_units ?? null;
+      const actualUnits = task.actual_units ?? null;
+      let defaultTarget = goalUnits;
+
+      if (defaultTarget === null) {
+        defaultTarget = actualUnits !== null ? actualUnits : (task.completed ? 1 : 0);
+      }
+
+      return {
+        title: task.title || "",
+        target: defaultTarget === null ? "" : String(defaultTarget),
+        priority: task.priority || null,
+        goal: goalUnits,
+        taskId: task.id,
+        actual: actualUnits,
+        completion_ratio: task.completion_ratio ?? 0,
+      };
+    });
 
      setCreateForm((f) => ({
        ...f,
@@ -592,10 +600,11 @@ export default function KpiPage({ initialKpis, filters }) {
             </div>
             <div className="col-12">
               <label className="form-label">Công việc (tiêu đề & mục tiêu)</label>
-              {createForm.tasks.map((t, idx) => (
-                <div key={idx} className="row g-2 align-items-center mb-2">
-                  <div className="col-md-7">
-                   <AsyncDropdownSelect
+              <div className="kpi-task-scroll">
+                {createForm.tasks.map((t, idx) => (
+                  <div key={idx} className="row g-2 align-items-center mb-2">
+                    <div className="col-md-7">
+                     <AsyncDropdownSelect
    name={`task-${idx}-title`}
    api="/api/titles"             // giống TaskAddForm
    field="title_name"            // field để hiển thị
@@ -603,36 +612,37 @@ export default function KpiPage({ initialKpis, filters }) {
    onChange={(e) => updateTaskRow(idx, 'title', e.target.value)}
    creatable
  />
-                  </div>
-                  <div className="col-md-3">
-                    <div className="d-flex flex-column gap-1">
-                      <div className="input-group">
-                        <span className="input-group-text">Số đạt</span>
-                        <input
-                          type="number"
-                          className="form-control"
-                          placeholder="0"
-                          min={0}
-                          value={t.target}
-                          onChange={(e) => updateTaskRow(idx, 'target', e.target.value)}
-                        />
+                    </div>
+                    <div className="col-md-3">
+                      <div className="d-flex flex-column gap-1">
+                        <div className="input-group">
+                          <span className="input-group-text">Số đạt</span>
+                          <input
+                            type="number"
+                            className="form-control"
+                            placeholder="0"
+                            min={0}
+                            value={t.target}
+                            onChange={(e) => updateTaskRow(idx, 'target', e.target.value)}
+                          />
+                        </div>
+                        {(t.priority || t.goal !== null) && (
+                          <small className="text-muted">
+                            {t.priority ? `Ưu tiên: ${t.priority}` : ''}
+                            {t.priority && t.goal !== null ? ' • ' : ''}
+                            {t.goal !== null ? `Mục tiêu: ${t.goal}` : ''}
+                          </small>
+                        )}
                       </div>
-                      {(t.priority || t.goal !== null) && (
-                        <small className="text-muted">
-                          {t.priority ? `Ưu tiên: ${t.priority}` : ''}
-                          {t.priority && t.goal !== null ? ' • ' : ''}
-                          {t.goal !== null ? `Mục tiêu: ${t.goal}` : ''}
-                        </small>
-                      )}
+                    </div>
+                    <div className="col-md-2 text-end">
+                      <button type="button" className="btn btn-outline-danger btn-sm" onClick={() => removeTaskRow(idx)}>
+                        Xoá
+                      </button>
                     </div>
                   </div>
-                  <div className="col-md-2 text-end">
-                    <button type="button" className="btn btn-outline-danger btn-sm" onClick={() => removeTaskRow(idx)}>
-                      Xoá
-                    </button>
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
              <button type="button" className="btn btn-outline-secondary btn-sm" onClick={addTaskRow}>
                 + Thêm công việc
               </button>

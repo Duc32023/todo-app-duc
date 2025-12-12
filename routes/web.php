@@ -148,8 +148,8 @@ Route::middleware(['auth'])->group(function () {
         Route::delete('/management/users/{user}', [UserController::class, 'destroy']);
     });
 
-    // ---- SUPERVISOR ONLY: KPI HEALTH TOOLING ----
-    Route::middleware(['auth', 'role:Trưởng phòng'])->group(function () {
+    // ---- MANAGER KPI HEALTH TOOLING ----
+    Route::middleware(['auth', 'role:Admin,Trưởng phòng'])->group(function () {
         Route::get('/management/kpi-health', [KpiHealthController::class, 'index'])
             ->name('management.kpi-health');
         Route::get('/management/kpi-health/snapshot', [KpiHealthController::class, 'snapshot']);
@@ -195,6 +195,7 @@ use App\Http\Controllers\Api\SupervisorApiController;
 use App\Http\Controllers\Api\StatusApiController;
 use App\Http\Controllers\Api\DashboardApiController;
 use App\Models\User;
+use App\Models\Department;
 
 Route::prefix('api')->middleware('auth')->group(function () {
     Route::prefix('shifts')->group(function () {
@@ -239,6 +240,14 @@ Route::prefix('api')->middleware('auth')->group(function () {
 
     Route::get('/users', function () {
         return User::select('id', 'name', 'email', 'avatar', 'role')->get();
+    });
+
+    Route::get('/departments', function () {
+        Department::syncFromManagers();
+
+        return Department::select('id', 'name', 'manager_id')
+            ->orderBy('name')
+            ->get();
     });
     // web.php
     Route::post('/tasks/{task}/user-status', [TaskController::class, 'updateUserStatus']);

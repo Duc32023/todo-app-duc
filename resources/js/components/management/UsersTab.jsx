@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import Swal from "sweetalert2";
 
 export default function UsersTab() {
@@ -9,8 +9,17 @@ export default function UsersTab() {
     password: "",
     old_password: "",
     role: "Nhân viên",
+    department_id: "",
   });
   const [editing, setEditing] = useState(null);
+  const [departments, setDepartments] = useState([]);
+
+  const loadDepartments = useCallback(() => {
+    fetch("/api/departments")
+      .then((res) => res.json())
+      .then((data) => setDepartments(Array.isArray(data) ? data : []))
+      .catch(() => setDepartments([]));
+  }, []);
 
   const csrf =
     document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") ||
@@ -24,6 +33,10 @@ export default function UsersTab() {
       .catch(() => Swal.fire("Lỗi", "Không tải được danh sách user", "error"));
   }, []);
 
+  useEffect(() => {
+    loadDepartments();
+  }, [loadDepartments]);
+
   // ============== RESET FORM ==============
   const resetForm = () => {
     setForm({
@@ -32,6 +45,7 @@ export default function UsersTab() {
       password: "",
       old_password: "",
       role: "Nhân viên",
+      department_id: "",
     });
     setEditing(null);
   };
@@ -41,6 +55,9 @@ export default function UsersTab() {
     const isEdit = !!editing;
     const url = isEdit ? `/management/users/${editing.id}` : "/management/users";
     const payload = { ...form };
+    if (!payload.department_id) {
+      payload.department_id = null;
+    }
 
     // Nếu edit, dùng POST + _method=PUT
     const method = "POST";
@@ -76,6 +93,7 @@ export default function UsersTab() {
         Swal.fire("Thành công", "Đã thêm người dùng", "success");
       }
 
+      loadDepartments();
       resetForm();
     } catch (err) {
       Swal.fire("Lỗi", "Không thể lưu người dùng", "error");
@@ -90,6 +108,7 @@ export default function UsersTab() {
       password: "",
       old_password: "",
       role: user.role || "Nhân viên",
+      department_id: user.department_id ? String(user.department_id) : "",
     });
     setEditing(user);
   };
@@ -116,6 +135,8 @@ export default function UsersTab() {
       Swal.fire("Lỗi", "Không thể xóa người dùng", "error");
     }
   };
+
+  const isManagerRole = form.role === "Trưởng phòng";
 
   return (
     <div className="p-3">
@@ -146,12 +167,39 @@ export default function UsersTab() {
             <select
               className="form-select"
               value={form.role}
-              onChange={(e) => setForm({ ...form, role: e.target.value })}
+              onChange={(e) => {
+                const nextRole = e.target.value;
+                setForm((prev) => ({
+                  ...prev,
+                  role: nextRole,
+                  department_id: nextRole === "Trưởng phòng" ? "" : prev.department_id,
+                }));
+              }}
             >
               <option value="Nhân viên">Nhân viên</option>
               <option value="Trưởng phòng">Trưởng phòng</option>
               <option value="Admin">Admin</option>
             </select>
+          </div>
+          <div className="col-md-4">
+            <select
+              className="form-select"
+              value={form.department_id}
+              onChange={(e) => setForm({ ...form, department_id: e.target.value })}
+              disabled={isManagerRole}
+            >
+              <option value="">Chưa gán phòng</option>
+              {departments.map((dept) => (
+                <option key={dept.id} value={dept.id}>
+                  {dept.name}
+                </option>
+              ))}
+            </select>
+            {isManagerRole && (
+              <small className="text-muted">
+                Trưởng phòng sẽ tự động có lựa chọn trùng với tên của họ.
+              </small>
+            )}
           </div>
           {/* Chỉ hiện nhập mật khẩu cũ nếu đang sửa và user đang đăng nhập KHÔNG phải Admin */}
           {editing && window.currentUserRole !== "Admin" && (
@@ -204,13 +252,14 @@ export default function UsersTab() {
             <th>Tên</th>
             <th>Email</th>
             <th>Vai trò</th>
+            <th>Phòng / Trưởng phòng</th>
             <th>Hành động</th>
           </tr>
         </thead>
         <tbody>
           {users.length === 0 ? (
             <tr>
-              <td colSpan="5" className="text-center text-muted py-4">
+              <td colSpan="6" className="text-center text-muted py-4">
                 Không có người dùng
               </td>
             </tr>
@@ -221,6 +270,7 @@ export default function UsersTab() {
                 <td>{u.name}</td>
                 <td>{u.email}</td>
                 <td>{u.role || "Nhân viên"}</td>
+                <td>{u.department?.name || "—"}</td>
                 <td>
                   <button
                     className="btn btn-warning btn-sm me-2"
