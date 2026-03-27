@@ -57,4 +57,14 @@ class User extends Authenticatable
     {
         return $this->belongsTo(Department::class);
     }
+
+    public function givenPeerReviews()
+    {
+        return $this->hasMany(PeerReview::class, 'reviewer_id');
+    }
+
+    public function receivedPeerReviews()
+    {
+        return $this->hasMany(PeerReview::class, 'reviewee_id');
+    }
 }

@@ -20,6 +20,7 @@ class Task extends Model
         'supervisor',
         'status',
         'priority',
+        'estimated_hours',
         'progress',
         'detail',
         'file_link',
@@ -64,7 +65,7 @@ class Task extends Model
     public function users()
     {
         return $this->belongsToMany(User::class, 'task_user')
-            ->withPivot('status', 'progress') // 👈 load luôn các cột phụ
+            ->withPivot('status', 'progress', 'completed_at', 'returned_count', 'read_at') // 👈 load luôn các cột phụ
             ->withTimestamps();
     }
 

@@ -365,6 +365,12 @@
           </a>
         </li>
         <li>
+          <a href="{{ route('peer-reviews.create') }}" class="nav-link {{ request()->is('peer-reviews') ? 'active' : '' }}" data-label="Đánh giá đồng đội">
+            <i class="bi bi-people"></i>
+            <span class="nav-label">Đánh giá đồng đội</span>
+          </a>
+        </li>
+        <li>
           <a href="/kpis" class="nav-link {{ request()->is('kpis*') ? 'active' : '' }}" data-label="KPI">
             <i class="bi bi-speedometer2"></i>
             <span class="nav-label">KPI</span>
@@ -449,6 +455,14 @@
                   data-label="Báo cáo">
                   <i class="bi bi-clipboard-check me-2"></i>
                   <span class="nav-label">Báo cáo</span>
+                </a>
+              </li>
+              <li>
+                <a href="/management/performance"
+                  class="nav-link py-1 {{ request()->is('management/performance*') ? 'active' : '' }}"
+                  data-label="Xếp hạng hiệu suất">
+                  <i class="bi bi-trophy me-2"></i>
+                  <span class="nav-label">Xếp hạng hiệu suất</span>
                 </a>
               </li>
               <li>

@@ -22,6 +22,7 @@ use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\UserNotificationController;
 use App\Http\Controllers\TaskProposalController;
 use App\Http\Controllers\Admin\TaskProposalReviewController;
+use App\Http\Controllers\PerformanceRankingController;
 use Illuminate\Support\Facades\View;
 // =============================
 // ✔️ AUTH routes
@@ -48,6 +49,13 @@ Route::middleware(['auth'])->group(function () {
 
     //  Dashboard
     Route::get('/dashboard', [TaskController::class, 'dashboard'])->name('dashboard');
+
+    Route::get('/peer-reviews', [PerformanceRankingController::class, 'createPeerReview'])
+        ->name('peer-reviews.create');
+    Route::post('/peer-reviews', [PerformanceRankingController::class, 'storePeerReview'])
+        ->name('peer-reviews.store');
+    Route::get('/peer-reviews/list', [PerformanceRankingController::class, 'reviews'])
+        ->name('peer-reviews.list');
 
     //  task crud (sau khi gộp controller)
     Route::resource('tasks', TaskController::class)->except(['show']);
@@ -109,6 +117,9 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/management/approval-center', fn() => view('management.approval-center'))
             ->name('management.approval-center');
         Route::get('/management/proposals', fn() => view('management.proposals'))->name('management.proposals');
+        Route::get('/management/performance', [PerformanceRankingController::class, 'index'])
+            ->name('management.performance');
+        Route::get('/management/performance/rankings', [PerformanceRankingController::class, 'rankings']);
         // ---- TASKS (mới) ----
         Route::get('/management/tasks',            [TaskAdminController::class, 'index']);
         Route::post('/management/tasks',            [TaskAdminController::class, 'store']);

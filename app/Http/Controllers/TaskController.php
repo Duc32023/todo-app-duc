@@ -155,6 +155,7 @@ class TaskController extends Controller
     {
         $request->validate([
             'attachments.*' => 'file|max:10240|mimes:pdf,doc,docx,xls,xlsx,ppt,pptx,txt',
+            'estimated_hours' => 'nullable|numeric|min:0|max:1000',
         ]);
 
         $this->autoCreateMeta($request);
@@ -162,6 +163,10 @@ class TaskController extends Controller
         $data = $request->all();
         // Form tự thêm của user: mặc định task thuộc về chính user đó (mô hình cũ vẫn OK)
         $data['user_id'] = Auth::id();
+
+        if (!isset($data['estimated_hours']) || $data['estimated_hours'] === null) {
+            $data['estimated_hours'] = 1;
+        }
 
         // deadline mặc định = task_date nếu không nhập
         if (empty($data['deadline_at'])) {
@@ -237,11 +242,16 @@ class TaskController extends Controller
             'user_ids' => 'nullable|array',
             'user_ids.*' => 'integer|exists:users,id',
             'assignees_submitted' => 'nullable|boolean',
+            'estimated_hours' => 'nullable|numeric|min:0|max:1000',
         ]);
 
         $this->autoCreateMeta($request);
 
         $data = $request->all();
+
+        if (!isset($data['estimated_hours']) || $data['estimated_hours'] === null) {
+            $data['estimated_hours'] = $task->estimated_hours ?? 1;
+        }
 
         unset($data['user_ids'], $data['assignees_submitted']);
 
@@ -393,11 +403,13 @@ class TaskController extends Controller
             $task->users()->attach($userId, [
                 'status'   => $validated['status'],
                 'progress' => $validated['status'] === 'Đã hoàn thành' ? 100 : 0,
+                'completed_at' => $validated['status'] === 'Đã hoàn thành' ? now() : null,
             ]);
         } else {
             $task->users()->updateExistingPivot($userId, [
                 'status'   => $validated['status'],
                 'progress' => $validated['status'] === 'Đã hoàn thành' ? 100 : 0,
+                'completed_at' => $validated['status'] === 'Đã hoàn thành' ? now() : null,
             ]);
         }
 
@@ -439,6 +451,7 @@ class TaskController extends Controller
                 'path'          => $path,
                 'mime_type'     => $uploadedFile->getClientMimeType(),
                 'size'          => $uploadedFile->getSize(),
+                'uploaded_by'   => Auth::id(),
             ]);
         }
 
@@ -702,6 +715,7 @@ class TaskController extends Controller
         $defaults = [
             'status'   => $task->status ?? 'Chưa hoàn thành',
             'progress' => $task->status === 'Đã hoàn thành' ? 100 : ($task->progress ?? 0),
+            'completed_at' => $task->status === 'Đã hoàn thành' ? now() : null,
         ];
 
         $task->users()->syncWithoutDetaching([
@@ -727,6 +741,7 @@ class TaskController extends Controller
                 $user->id => [
                     'status' => $user->pivot->status ?? 'Chưa hoàn thành',
                     'progress' => $user->pivot->progress ?? 0,
+                    'completed_at' => $user->pivot->completed_at,
                 ],
             ];
         });
@@ -736,6 +751,7 @@ class TaskController extends Controller
             $payload[$userId] = $existing[$userId] ?? [
                 'status' => 'Chưa hoàn thành',
                 'progress' => 0,
+                'completed_at' => null,
             ];
         }
 

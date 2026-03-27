@@ -56,6 +56,16 @@
     </select>
 </div>
 
+<div class="mb-3">
+    <label>Ước lượng thời gian (giờ):</label>
+    <input type="number"
+           name="estimated_hours"
+           class="form-control"
+           min="0"
+           step="0.25"
+           value="{{ old('estimated_hours', $task->estimated_hours ?? 1) }}">
+</div>
+
     <div class="mb-3">
         <label>Tiến độ:</label>
         <input type="number" name="progress" class="form-control" value="{{ $task->progress }}">
